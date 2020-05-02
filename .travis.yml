@@ -1,8 +1,28 @@
 sudo: required
 services:
   - docker
+env:
+  global:
+    - SHA=$(git rev-parse HEAD)
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
 before_install:
+  - openssl aes-256-cbc -K $encrypted_0c35eebf403c_key -iv $encrypted_0c35eebf403c_iv -in service-account.json.enc -out service-account.json -d
   - curl https://sdk.cloud.google.com | bash > /dev/null;
   - source $HOME/google-cloud-sdk/path.bash.inc #2 steps to sintall G cloud SDK
   - gcloud components update kubectl #download and intall kubectl tool
   - gcloud auth activate-service-account --key-file service-account.json #authorizing Gcloud account.
+  - gcloud config set project multi-k8s-276010 # we have to tell which project we are using and name is the ID in GCloud.
+  - gcloud config set compute/zone us-central1-c	 #specify a compute zone
+  - gcloud container clusters get-credentials multi-cluster #what cluster GCloud should be working with when we issue kubernetes commands
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin #login to docker
+  - docker build -t sathyajith91/react-test -f ./client/Dockerfile.dev ./client #metioning the context
+
+script: #how to run the actual tests for our project
+  - docker run -e CI=true sathyajith91/react-test npm run test # once everything os successful, it will come out
+
+# for deploying, we have to take care of everything. need to mention all the commands and then travis will execute that for us.
+deploy:
+  provider: script #earlier, we had mentioned elasticbeanstalk which use to take care of deployment.
+  script: bash ./deploy.sh #script we want the travis to execute
+  on:
+    branch: master #only if wew are pushing to master branch, then deploy
